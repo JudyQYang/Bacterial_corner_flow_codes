@@ -1,0 +1,252 @@
+     
+clc
+clear
+close all
+
+%% Data configuration -- need to change
+listing = dir('/Volumes/Judy_SoilC_2/Bacteria_climbing/Contact_angle_all/Feb15_9d3am_OD0d28_theta/25hrs_OD_1d74_1d75/Advancing_20ulmin');
+nb_all_img = numel(listing)-2;
+dt = 2; % seconds
+gap = 1%round(nb_all_img/10);
+T_all = [0:dt:dt*(nb_all_img-1)];
+
+im = imread([listing(nb_all_img+2).folder,'/',listing(nb_all_img+2).name]);
+% figure
+% imshow(im);
+% rect = getrect % [xmin ymin width height]
+rect = [ 187           5        1572         972];
+
+figure
+im = imcrop(im,rect);
+imshow(im);
+    
+% im = 0.8*rgb2gray(im);
+% [rect_mid,xi4,yi4] = roipoly;
+xi4= [ 707         693        1133        1127         707];%       1592 770];
+yi4 = [ 1   431   441     1     1 ];
+
+% im = imread([listing(1+2).folder,'/',listing(1+2).name]);
+mask = roipoly(im,xi4,yi4);
+index = find(mask==1);
+
+% x0L = 666;
+% y0L = 1161;
+% x0R = 1596;
+% y0R = 1154;
+
+%% save the images with imposed boundary to a video 
+workingDir = 'Processed2';
+mkdir(workingDir)
+
+alpha_L_tot = [];
+alpha_R_tot = [];
+
+data_index = [];
+close all
+
+%% calculate the contact angle for each images 
+for k = 88:gap:nb_all_img
+    im = imread([listing(k+2).folder,'/',listing(k+2).name]);
+    im = imcrop(im,rect);
+    im0 = im;
+    im = rgb2gray(im);
+%     im = imbinarize(im,0.95);
+%     im = double(im)*255;
+%     f1h=figure;
+%     imshow(double(im)*255)
+
+im(index) = 255;
+% figure
+% imshow(im);
+
+im = imadjust(im);
+% pout = im;
+% pout_imadjust = imadjust(pout);
+% pout_histeq = histeq(pout);
+% pout_adapthisteq = adapthisteq(pout);
+% montage({pout,pout_imadjust,pout_histeq,pout_adapthisteq},'Size',[1 4])
+
+% rect = getrect;
+% rect = [647   863   930   666]
+% in = inpolygon(xq,yq,xv,yv)
+% im = imcrop(im, rect);
+
+% im=imread('EX1.tif');
+
+% f1h=figure(1);
+% imshow(im)
+% set(f1h,'Units','normalized','Position',[0,0.6,0.3,0.3]);
+%---------------------------------------------------------------
+%         Step 2 Detect boundaries in image
+%---------------------------------------------------------------
+[edges, RI] = subpixelEdges(im, 4);
+
+% f2h=figure(2);
+% imshow(im)
+% hold on
+% plot(edges.x,edges.y,'r.','LineWidth',2)
+% set(f2h,'Units','normalized','Position',[0.31,0.6,0.3,0.3])
+
+
+%---------------------------------------------------------------
+%         Step 3 Select longes boundary in image
+%---------------------------------------------------------------
+
+longestedge=findlongestedge(edges,size(im),6);
+
+f3h=figure(3);
+imshow(im)
+hold on
+plot(longestedge.x,longestedge.y,'r.','LineWidth',2)
+set(f3h,'Units','normalized','Position',[0.62,0.6,0.3,0.3])
+
+
+
+%---------------------------------------------------------------
+%         Step 4 Split edge into left and right and sort it
+%---------------------------------------------------------------
+
+index_L = find(longestedge.x == min(longestedge.x));
+x0L = longestedge.x(index_L);
+y0L = longestedge.y(index_L);
+index_R = find(longestedge.x == max(longestedge.x));
+x0R = longestedge.x(index_R);
+y0R = longestedge.y(index_R);
+% 
+
+portion = 0.05;
+left_index = find(longestedge.x>=x0L & longestedge.x <= x0L+portion*(x0R-x0L) & longestedge.y<y0L);
+edgeL_x = longestedge.x(left_index );
+edgeL_y = longestedge.y(left_index );
+
+right_index = find(longestedge.x<=x0R & longestedge.x >= x0R-portion*(x0R-x0L) & longestedge.y<y0R);
+edgeR_x = longestedge.x(right_index );
+edgeR_y = longestedge.y(right_index );
+
+f4h=figure(4);
+imshow(im)
+hold on
+plot(edgeL_x,edgeL_y,'r','LineWidth',2)
+plot(edgeR_x,edgeR_y,'b','LineWidth',2)
+set(f4h,'Units','normalized','Position',[0.0,0.3,0.3,0.3])
+
+
+
+% %%
+% %---------------------------------------------------------------
+% %         Step 5 Fit with straight line
+% %---------------------------------------------------------------
+
+%% select the reflection 
+% waitfor(msgbox('Select interface left and right points'));
+% [x0L,y0L] = getpts;
+% [x0R,y0R] = getpts;
+
+
+% [x0L,y0L,indexL]=findreflection([edgeL.x,edgeL.y],10,160); % change the last entry (160) to zero and see what happens
+% [x0R,y0R,indexR]=findreflection([edgeR.x,edgeR.y],10,160);
+
+pL = polyfit(edgeL_x,edgeL_y,1);
+pR = polyfit(edgeR_x,edgeR_y,1);
+
+xxL = linspace(x0L, x0L+0.25*(x0R-x0L), 10);
+xxR = linspace(x0R-0.25*(x0R-x0L), x0R, 10);
+yyL = polyval(pL,xxL);
+yyR = polyval(pR,xxR);
+
+alpha_L = atan(-pL(1))/pi*180;
+alpha_R = atan(pR(1))/pi*180;
+
+f5h=figure(5);
+imshow(im0)
+hold on
+plot(xxL,yyL,'r--','LineWidth',2)
+plot(xxR,yyR,'b--','LineWidth',2)
+
+set(gca,'xtick',[],'ytick',[])
+set(gca,'LooseInset',get(gca,'TightInset'));
+               
+% set(f5h,'Units','normalized','Position',[0.31,0.3,0.3,0.3])
+saveas(gcf,[pwd,'/',workingDir,'/','t_',num2str(k),'.tiff']);
+                 
+
+    alpha_L_tot(k) = alpha_L;
+    alpha_R_tot(k) = alpha_R;
+    
+    
+% %% find the elliptical fit 
+% edgeL.x = edgeL_x;
+% edgeL.y = edgeL_y;
+% edgeR.x = edgeR_x;
+% edgeR.y = edgeR_y;
+% baseL = [x0L,y0L];
+% baseR = [x0R,y0R];
+% 
+% f6h=figure(6);
+% imshow(im0)
+% hold on
+% plot(edgeL.x,edgeL.y,'r--','LineWidth',2)
+% plot(edgeR.x,edgeR.y,'b--','LineWidth',2)
+% 
+% set(gca,'xtick',[],'ytick',[])
+% set(gca,'LooseInset',get(gca,'TightInset'));
+% 
+% radius=200;
+% tilt=atand((y0R-y0L)/(x0R-x0L));
+% if numel(edgeL.x)>5 & numel(edgeR.x)>5
+%     EllipseData=EllipticFit(edgeL,edgeR,baseL,baseR);
+%     plot([EllipseData.TLL(1),EllipseData.TLL(1)+radius*cosd(EllipseData.CAL-tilt)],[EllipseData.TLL(2),EllipseData.TLL(2)-radius*sind(EllipseData.CAL-tilt)],'LineWidth', 2,'color','g')
+%     plot([EllipseData.TLR(1),EllipseData.TLR(1)-radius*cosd(EllipseData.CAR+tilt)],[EllipseData.TLR(2),EllipseData.TLR(2)-radius*sind(EllipseData.CAR+tilt)],'LineWidth', 2,'color','g')
+% end
+% 
+% f7h=figure;
+% imshow(im0)
+% hold on
+% 
+% 
+% tvec=linspace(0,2*pi)';
+% ellipserim=@(e,t) ones(size(t))*[e.X0_in,e.Y0_in]+cos(t)*[cos(-e.phi),sin(-e.phi)]*e.a+sin(t)*[-sin(-e.phi),cos(-e.phi)]*e.b;
+% 
+% EL=ellipserim(EllipseData.ellipse{1},tvec);
+% ER=ellipserim(EllipseData.ellipse{2},tvec);
+% 
+% plot(EL(:,1),EL(:,2),'r','LineWidth',1.4);
+% plot(ER(:,1),ER(:,2),'b','LineWidth',1.4);
+% 
+% plot([EllipseData.TLL(1),EllipseData.TLL(1)+radius*cosd(EllipseData.CAL-tilt)],[EllipseData.TLL(2),EllipseData.TLL(2)-radius*sind(EllipseData.CAL-tilt)],'LineWidth', 2,'color','g')
+% plot([EllipseData.TLR(1),EllipseData.TLR(1)-radius*cosd(EllipseData.CAR+tilt)],[EllipseData.TLR(2),EllipseData.TLR(2)-radius*sind(EllipseData.CAR+tilt)],'LineWidth', 2,'color','g')
+% 
+
+
+close all
+clf('reset') 
+end 
+
+nb_all = nb_all_img;
+%%
+    figure; hold on
+    set(gca,'fontsize',20);
+    
+
+    plot(T_all(1:gap:nb_all), alpha_L_tot(1:gap:nb_all), 'ro--','linewidth',2,'markersize',12);
+    plot(T_all(1:gap:nb_all), alpha_R_tot(1:gap:nb_all), 'bx--','linewidth',2,'markersize',12);
+%     plot(T_all, alpha_L_elip, 'bo','linewidth',2);
+%     plot(T_all, alpha_R_elip, 'b+','linewidth',2);
+    
+    ylim([0 90])
+    box on; 
+    legend(['\theta_L=',num2str(mean(alpha_L_tot(1:gap:nb_all)),2),'^{o}'],['\theta_R=',num2str(mean(alpha_L_tot(1:gap:nb_all)),2),'^{o}'],'location','north');
+    legend boxoff 
+    legend(['\theta_L=',num2str(mean(alpha_L_tot(1:gap:nb_all)),2),'\pm',num2str(std(alpha_L_tot(1:gap:nb_all)),2),'^{o}'],['\theta_R=',num2str(mean(alpha_R_tot(1:gap:nb_all)),2),'\pm',num2str(std(alpha_R_tot(1:gap:nb_all)),2),'^{o}'],'location','north');
+    legend boxoff 
+    ylabel('Angle')
+    xlabel('Time [s]')
+    set(gcf,'PaperPositionMode','Manual')
+    set(gcf,'PaperUnits','inches')
+    
+    set(gcf,'PaperSize',[8 6])
+    set(gcf,'PaperPosition',[0 0 8 6])
+    saveas(gcf, ['Advancing_angle_25hrs'], 'pdf')
+    
+    %%
+    save('alpha_small.mat')
